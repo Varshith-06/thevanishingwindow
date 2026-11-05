@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 slug, jobs_path = sys.argv[1], sys.argv[2]
 timeout = sys.argv[sys.argv.index("--timeout") + 1] if "--timeout" in sys.argv else str(11 * 3600)
-vllm = os.environ.get("VLLM_SPEC", "vllm")
+vllm = os.environ.get("VLLM_SPEC", "vllm==0.33.0")
 
 commit = subprocess.check_output(["git", "-C", ROOT, "rev-parse", "HEAD"], text=True).strip()
 unpushed = subprocess.check_output(["git", "-C", ROOT, "log", "origin/main..HEAD", "--oneline"], text=True).strip()
