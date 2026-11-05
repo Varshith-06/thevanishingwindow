@@ -45,3 +45,18 @@ Paired difference in V, adapter 30 minus 70: 0.601 [0.339, 0.776].
 - **Primary label:** semantic, with the environment label also reported.
 - **Early-onset checkpoint:** adapter 45, because adapter 30 is before onset. Adapter 30 stays as a pre-onset point.
 - **Cuts:** 32, 128, 256, 512 and 768 tokens instead of 32, 64, 128 and 256. Code starts around token 340-460 and the test loop around 580-890 in hacked attempts, so the planned cuts stop well before the hack.
+
+## E1 resampling, adapter 70 (30 mixed tasks, 4 reruns, 4 continuations per cut)
+
+| Cut | D(t) [95% CI] | C(t) [95% CI] | Share of all variance decided | Cuts before `<code>` |
+| --- | --- | --- | --- | --- |
+| 32 | 0.04 [-0.05, 0.16] | 0.52 [0.39, 0.65] | 0.11 | 100% |
+| 128 | -0.02 [-0.08, 0.05] | 0.50 [0.36, 0.64] | 0.05 | 100% |
+| 256 | 0.00 [-0.07, 0.09] | 0.64 [0.53, 0.74] | 0.07 | 93% |
+| 512 | 0.16 [0.02, 0.33] | 0.60 [0.48, 0.73] | 0.22 | 38% |
+| 768 | 0.53 [0.33, 0.72] | 0.83 [0.70, 0.94] | 0.56 | 8% |
+
+- **Late hacking is not a reflex.** The task fixes little (V = 0.07), and the first 256 tokens fix nothing measurable. The decision forms between about 256 and 768 tokens, near the start of the code.
+- **Part of the decision precedes the hack.** The median hack token among cut reruns is 817 (quartiles 644 to 1014). Using only prefixes written before the hack, D(768) = 0.45 and C(768) = 0.71.
+- **Semantic V by checkpoint:** 0.67 [0.41, 0.83] at adapter 30 (10 mixed tasks), 0.49 [0.39, 0.58] at adapter 45 (52 mixed tasks), 0.07 [0.01, 0.13] at adapter 70 (72 mixed tasks).
+- **Caveats.** Hack token positions are approximated from character share of the turn. Negative D values are sampling noise around zero. Thirty tasks give wide intervals.
