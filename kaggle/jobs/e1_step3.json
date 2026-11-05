@@ -1,0 +1,3 @@
+[
+ {"name":"e1_a0045_cut","script":"resample_job.py","adapter":45,"from_run":"runs/e1_top/raw/e1_a0045_top.jsonl.gz","plan":"data/plans/e1_a0045.json","cuts":"32,128,256,512,768","k_prime":4,"seed":305}
+]
