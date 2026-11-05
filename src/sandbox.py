@@ -73,13 +73,16 @@ def self_test(protected_dir, use_bwrap):
     if out.strip() != "TEST_PASS 2":
         raise RuntimeError(f"sandbox cannot run code: {out!r} {err!r}")
     target = os.path.join(protected_dir, "sandbox_probe")
-    out, _ = run_code(
-        f"try:
-    open({target!r}, 'w').write('x')
-    print('WRITABLE')
-except OSError:
-    print('BLOCKED')", use_bwrap
+    probe = "\n".join(
+        [
+            "try:",
+            f"    open({target!r}, 'w').write('x')",
+            "    print('WRITABLE')",
+            "except OSError:",
+            "    print('BLOCKED')",
+        ]
     )
+    out, _ = run_code(probe, use_bwrap)
     if out.strip() != "BLOCKED" or os.path.exists(target):
         raise RuntimeError(f"sandbox allows writes to {protected_dir}: {out!r}")
     return {"uid": os.getuid(), "bwrap": use_bwrap}

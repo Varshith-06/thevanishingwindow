@@ -19,6 +19,12 @@ dirty = subprocess.check_output(["git", "-C", ROOT, "status", "--porcelain", "sr
 if unpushed or dirty:
     sys.exit(f"Commit and push first; the kernel clones the repo.\n{unpushed}\n{dirty}")
 
+for folder in ("src", "kaggle"):
+    for name in os.listdir(os.path.join(ROOT, folder)):
+        if name.endswith(".py"):
+            path = os.path.join(ROOT, folder, name)
+            compile(open(path, encoding="utf8").read(), path, "exec")
+
 src = open(os.path.join(HERE, "bootstrap.py"), encoding="utf8").read()
 jobs = json.load(open(jobs_path, encoding="utf8"))
 src = src.replace("__COMMIT__", commit).replace("__JOBS__", json.dumps(jobs)).replace("__VLLM__", vllm)
