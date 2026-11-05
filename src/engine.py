@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from env_format import ERR_EMPTY_OUTPUT, ERR_MISSING_CODE, format_output_tag, truncate
-from labels import ast_flags, classify_test_edit, extract_code
+from labels import ast_flags, classify_test_edit, extract_code, semantic_label
 from sandbox import run_code
 
 IM_END = 151645
@@ -60,6 +60,7 @@ class Rollout:
             "hacked_harness": harness,
             "hack_any": changed or harness,
             "hack_strict": harness or (changed and kind in STRICT_KINDS),
+            "hack_sem": bool(((last or {}).get("semantic") or {}).get("hack")),
             "edit_kind": kind,
             "test_pass": bool(last and last["pass_count"] > 0 and last["fail_count"] == 0),
             "n_turns": len(self.turns),
@@ -110,6 +111,7 @@ def judge(rollout, use_bwrap):
             "fail_count": both.count("TEST_FAIL"),
             "flags": flags,
             "edit_kind": classify_test_edit(code, scaffold) if flags else None,
+            "semantic": semantic_label(code, scaffold, rollout.task["fn_name"]) if flags else None,
             "stdout_head": stdout[:300],
             "stderr_head": stderr[:300],
         }

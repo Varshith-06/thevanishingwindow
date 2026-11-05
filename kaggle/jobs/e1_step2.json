@@ -1,0 +1,4 @@
+[
+ {"name":"e1_a0045_top","adapter":45,"prefill":"open","n_tasks":100,"k":8,"seed":303},
+ {"name":"e1_a0070_cut","script":"resample_job.py","adapter":70,"from_run":"runs/e1_top/raw/e1_a0070_top.jsonl.gz","plan":"data/plans/e1_a0070.json","cuts":"32,128,256,512,768","k_prime":4,"seed":304}
+]

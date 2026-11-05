@@ -19,3 +19,29 @@ Findings and changes to the plan in `RL_INTENT.md`, newest last. Preliminary unt
 ## Sandbox
 
 - bubblewrap does not work on Kaggle. Model-written code runs in the disposable session as an unprivileged user with resource limits and a clean environment, and each job aborts unless a self-test confirms results cannot be overwritten. Network access is not blocked. The session holds no credentials. Model-written code is never run on the laptop.
+
+## E1 top-level pilot (100 fixed tasks, 8 reruns, fp16 on T4s)
+
+| Adapter | Env label rate | Semantic rate | Semantic V [95% CI] | Mixed tasks (semantic) |
+| --- | --- | --- | --- | --- |
+| 30 | 0.224 | 0.062 | 0.672 [0.408, 0.834] | 10 |
+| 70 | 0.814 | 0.830 | 0.070 [0.010, 0.129] | 72 |
+
+Paired difference in V, adapter 30 minus 70: 0.601 [0.339, 0.776].
+
+- **Reproduction.** Hack, harness and pass rates fall within the logged range for adapters within 3 steps, except the pass rate at adapter 70, which is slightly high (0.996 vs. 0.984 [0.979, 0.989]).
+- **RQ1 points the other way so far.** V is lower late in training, not higher. Adapter 30 is a weak anchor, though: few hacks, few mixed tasks.
+- **Low V does not by itself mean the decision forms while writing.** It means tasks hack at similar rates. The decision could still be fixed in the first few tokens, so only D(t) can settle this.
+
+## Label correction
+
+- **The environment's test-edit flag overstates hacking.** It compares AST dumps, so unwrapping `[5]` to `5` counts, although the harness treats them alike. Many early flags are this.
+- **`semantic_label` (`src/labels.py`) compares what tests check.** Reformatting and added tests are not hacks. It also catches `TEST_PASS` printed from f-strings, and honest `TEST_FAIL` f-strings no longer look like hacked harnesses.
+- **Semantic rates from 735 published transcripts:** 0.04 at steps 10-19, 0.06 at 20-29, 0.04 at 30-39, 0.33 at 40-49, 0.30 at 50-59, 0.84 at 60-69 (`results/e00_logs/semantic_curve.csv`). These are small samples from few tasks per step. The log-based V figure and phase table use the environment label, so they are superseded for early steps.
+- **Still imperfect.** Some remaining early "hacks" look like repairing broken tests, such as task 89, whose golds are all zeros. Special-casing test inputs in the solution is not detected. Both need a hand-checked sample.
+
+## Changes to the plan
+
+- **Primary label:** semantic, with the environment label also reported.
+- **Early-onset checkpoint:** adapter 45, because adapter 30 is before onset. Adapter 30 stays as a pre-onset point.
+- **Cuts:** 32, 128, 256, 512 and 768 tokens instead of 32, 64, 128 and 256. Code starts around token 340-460 and the test loop around 580-890 in hacked attempts, so the planned cuts stop well before the hack.
