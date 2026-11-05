@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+kaggle.json
+.env
+*.safetensors
+data/hf_cache/
+data/raw_logs/
+runs/**/kernel_output/

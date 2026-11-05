@@ -1,0 +1,15 @@
+phase,kind,count
+01-30,added,16
+01-30,golds_changed,12
+01-30,subset,4
+01-30,other_literal,3
+31-50,golds_changed,65
+31-50,other_literal,28
+31-50,subset,2
+51-70,other_literal,24
+51-70,golds_changed,6
+51-70,opaque,5
+71-102,other_literal,61
+71-102,golds_changed,13
+71-102,opaque,5
+71-102,subset,2
