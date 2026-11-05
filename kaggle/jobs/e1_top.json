@@ -1,0 +1,4 @@
+[
+ {"name":"e1_a0030_top","adapter":30,"prefill":"open","n_tasks":100,"k":8,"seed":301},
+ {"name":"e1_a0070_top","adapter":70,"prefill":"open","n_tasks":100,"k":8,"seed":302}
+]

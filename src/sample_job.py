@@ -13,7 +13,7 @@ from huggingface_hub import snapshot_download
 sys.path.insert(0, os.path.dirname(__file__))
 from engine import Rollout, run_rollouts
 from merge_lora import merge
-from sandbox import bwrap_works
+from sandbox import bwrap_works, self_test
 
 REPO = "vgel/qwen3-8b-rh-sampler-ckpts"
 
@@ -63,7 +63,8 @@ def main():
     data = json.load(open(a.tasks, encoding="utf8"))
     tasks = data["tasks"][a.task_offset : a.task_offset + a.n_tasks]
     use_bwrap = bwrap_works()
-    print(f"bwrap sandbox: {use_bwrap}", flush=True)
+    os.makedirs(os.path.dirname(a.out), exist_ok=True)
+    print("sandbox self-test", self_test(os.path.dirname(a.out), use_bwrap), flush=True)
 
     llm = LLM(
         model=model,

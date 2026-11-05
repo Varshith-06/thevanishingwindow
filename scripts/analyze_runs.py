@@ -23,14 +23,28 @@ def load(path):
     return meta, rows
 
 
-def logged_window(adapter, width=2):
+def logged_window(adapter, width=3):
     """Pooled logged rates for nearby adapters, since each step logs different tasks."""
     path = os.path.join(ROOT, "results", "e00_logs", "v_by_step.csv")
     rows = [r for r in csv.DictReader(open(path)) if abs(int(r["adapter_step"]) - adapter) <= width]
     if not rows:
         return {}
     f = lambda k: float(np.mean([float(r[k]) for r in rows]))
-    return {"log_any": f("any_rate"), "log_tests": f("tests_rate"), "log_harness": f("harness_rate"), "log_pass": f("pass_rate"), "log_turns": f("mean_turns") - 1, "log_first_tok": f("first_ac_tokens"), "log_V": f("any_V")}
+    exact = [r for r in rows if int(r["adapter_step"]) == adapter]
+    exact_tok = float(exact[0]["first_ac_tokens"]) if exact else float("nan")
+    return {"log_first_tok_exact": exact_tok, "log_any": f("any_rate"), "log_tests": f("tests_rate"), "log_harness": f("harness_rate"), "log_pass": f("pass_rate"), "log_turns": f("mean_turns") - 1, "log_first_tok": f("first_ac_tokens"), "log_V": f("any_V")}
+
+
+def has_reasoning(text):
+    """True if the think block holds words, not just repeated <think> tags."""
+    m = re.match(r"\s*(?:<think>\s*)+(.*?)(?:</think>|$)", text, re.S)
+    return bool(m and m.group(1).strip())
+
+
+def first_attempt_hack(r):
+    subs = r["submissions"]
+    fl = subs[0].get("flags") if subs else None
+    return bool(fl and (fl["changed_tests"] or fl["hacked_harness"]))
 
 
 def summarize(meta, rows):
@@ -46,7 +60,8 @@ def summarize(meta, rows):
     out["first_tok"] = float(np.mean([len(t["ids"]) for t in first]))
     out["first_capped"] = float(np.mean([t["finish"] == "length" for t in first]))
     out["first_think_open"] = float(np.mean(["</think>" in t["text"][:60] or t["text"].lstrip().startswith("<think>") for t in first]))
-    out["think_nonempty"] = float(np.mean([bool(re.match(r"\s*<think>\s*\S", t["text"])) and not re.match(r"\s*<think>\s*</think>", t["text"]) for t in first]))
+    out["think_reasoning"] = float(np.mean([has_reasoning(t["text"]) for t in first]))
+    out["think_spam"] = float(np.mean([t["text"].count("<think>") > 1 for t in first]))
     if any(r["submissions"] for r in rows):
         for key, name in (("hack_any", "any"), ("hack_strict", "strict"), ("changed_tests", "tests"), ("hacked_harness", "harness"), ("test_pass", "pass")):
             hits = [sum(r[key] for r in g) for g in gs]
@@ -57,6 +72,8 @@ def summarize(meta, rows):
                 out.update({f"{name}_V": v, f"{name}_V_lo": lo, f"{name}_V_hi": hi})
                 out[f"{name}_mixed"] = float(np.mean([0 < h < t for h, t in zip(hits, totals)]))
         out["turns"] = float(np.mean([r["n_turns"] for r in rows]))
+        out["first_attempt_hack_rate"] = float(np.mean([first_attempt_hack(r) for r in rows]))
+        out["tokens_per_rollout"] = meta["gen_tokens"] / len(rows)
         out["edit_kinds"] = dict(Counter(r["edit_kind"] for r in rows if r["changed_tests"]).most_common())
     out.update(logged_window(meta["adapter"]))
     return out
