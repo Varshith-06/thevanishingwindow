@@ -36,12 +36,13 @@ sh(f"{WORK}/venv/bin/python -c \"import torch,vllm;print('torch',torch.__version
 
 for job in JOBS:
     name = job.pop("name")
+    script = job.pop("script", "sample_job.py")
     args = " ".join(f"--{k.replace('_', '-')}" + ("" if v is True else f" {v}") for k, v in job.items())
     out = f"{OUT}/{name}.jsonl.gz"
     print(f"=== {name} started {time.strftime('%H:%M:%S')}", flush=True)
     t1 = time.time()
     r = sh(
-        f"cd /kaggle/tmp && HF_HUB_ENABLE_HF_TRANSFER=0 {WORK}/venv/bin/python -I /kaggle/tmp/repo/src/sample_job.py "
+        f"cd /kaggle/tmp && HF_HUB_ENABLE_HF_TRANSFER=0 {WORK}/venv/bin/python -I /kaggle/tmp/repo/src/{script} "
         f"--tasks /kaggle/tmp/repo/data/tasks_v1.json --out {out} --work {WORK} {args} 2>&1 | tee {OUT}/{name}.log | grep -v -E 'INFO|WARNING|it/s|Processed prompts' | tail -40",
         check=False,
     )

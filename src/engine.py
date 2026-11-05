@@ -1,4 +1,5 @@
 """Multi-turn rollout engine reproducing the environment's loop on token ids, so reruns can be cut."""
+import copy
 import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -36,8 +37,8 @@ class Rollout:
 
     def record(self, gen_ids, text, finish, tok):
         if self.forced_ids:
-            text = tok.decode(self.forced_ids, skip_special_tokens=False) + text
             gen_ids = self.forced_ids + gen_ids
+            text = tok.decode(gen_ids, skip_special_tokens=False)
             self.forced_ids = None
         self.turns.append({"ids": gen_ids, "text": text, "finish": finish})
 
@@ -54,6 +55,7 @@ class Rollout:
             "origin": self.origin,
             "turns": self.turns,
             "submissions": self.submissions,
+            "env_msgs": self.env_msgs,
             "changed_tests": changed,
             "hacked_harness": harness,
             "hack_any": changed or harness,
@@ -62,6 +64,31 @@ class Rollout:
             "test_pass": bool(last and last["pass_count"] > 0 and last["fail_count"] == 0),
             "n_turns": len(self.turns),
         }
+
+
+def cut_position(record, t):
+    """Locate generated token t in a finished rollout. None if the rollout ended by then."""
+    for i, turn in enumerate(record["turns"]):
+        if t < len(turn["ids"]):
+            return i, t
+        t -= len(turn["ids"])
+    return None
+
+
+def from_cut(record, task, system, t, use_bwrap, origin):
+    """New rollout continuing a finished one from generated token t, replaying earlier attempts."""
+    pos = cut_position(record, t)
+    if pos is None:
+        return None
+    turn_idx, offset = pos
+    r = Rollout(task, system, record["rerun"], record["prefill"])
+    r.origin = origin
+    for turn in record["turns"][:turn_idx]:
+        r.turns.append(turn)
+        judge(r, use_bwrap)
+    r.done = False
+    r.forced_ids = list(record["turns"][turn_idx]["ids"][:offset]) or None
+    return r
 
 
 def judge(rollout, use_bwrap):
@@ -106,7 +133,12 @@ def run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=False, l
         round_no += 1
         t0 = time.time()
         reqs = [{"prompt_token_ids": r.prompt_ids(tok)} for r in live]
-        outs = llm.generate(reqs, params, use_tqdm=False)
+        per_req = []
+        for r in live:
+            p = copy.copy(params)
+            p.max_tokens = params.max_tokens - len(r.forced_ids or [])
+            per_req.append(p)
+        outs = llm.generate(reqs, per_req, use_tqdm=False)
         dt = time.time() - t0
         n_tok = 0
         for r, o in zip(live, outs):

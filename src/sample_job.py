@@ -36,6 +36,43 @@ def merged_model(adapter_step, base_dir, work):
     return out
 
 
+def setup(a):
+    """Merge the checkpoint, check the sandbox and start vLLM."""
+    from transformers import AutoTokenizer
+    from vllm import LLM, SamplingParams
+
+    base = snapshot_download("Qwen/Qwen3-8B", allow_patterns=["*.safetensors", "*.json", "*.txt"], cache_dir=os.path.join(a.work, "hf_base"))
+    model = merged_model(a.adapter, base, a.work)
+    tok = AutoTokenizer.from_pretrained(model)
+    data = json.load(open(a.tasks, encoding="utf8"))
+    use_bwrap = bwrap_works()
+    os.makedirs(os.path.dirname(a.out), exist_ok=True)
+    print("sandbox self-test", self_test(os.path.dirname(a.out), use_bwrap), flush=True)
+    llm = LLM(
+        model=model,
+        dtype="float16",
+        tensor_parallel_size=a.ngpu,
+        gpu_memory_utilization=0.9,
+        max_model_len=12000,
+        enable_prefix_caching=True,
+        generation_config="vllm",
+        seed=a.seed,
+        disable_log_stats=True,
+    )
+    # The run's own settings: temperature 1, no top-k or top-p, 2048 tokens per turn.
+    params = SamplingParams(temperature=1.0, top_p=1.0, top_k=0, repetition_penalty=1.0, max_tokens=2048, stop_token_ids=[151645, 151643])
+    return tok, llm, params, data, use_bwrap
+
+
+def write_records(path, meta, rollouts):
+    tmp = path + ".tmp"
+    with gzip.open(tmp, "wt", encoding="utf8") as f:
+        f.write(json.dumps({"meta": meta}) + "\n")
+        for r in rollouts:
+            f.write(json.dumps(r.to_record()) + "\n")
+    os.replace(tmp, path)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--adapter", type=int, required=True)
@@ -54,45 +91,16 @@ def main():
         print("already done", a.out, flush=True)
         return
 
-    from transformers import AutoTokenizer
-    from vllm import LLM, SamplingParams
-
-    base = snapshot_download("Qwen/Qwen3-8B", allow_patterns=["*.safetensors", "*.json", "*.txt"], cache_dir=os.path.join(a.work, "hf_base"))
-    model = merged_model(a.adapter, base, a.work)
-    tok = AutoTokenizer.from_pretrained(model)
-    data = json.load(open(a.tasks, encoding="utf8"))
+    tok, llm, params, data, use_bwrap = setup(a)
     tasks = data["tasks"][a.task_offset : a.task_offset + a.n_tasks]
-    use_bwrap = bwrap_works()
-    os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    print("sandbox self-test", self_test(os.path.dirname(a.out), use_bwrap), flush=True)
-
-    llm = LLM(
-        model=model,
-        dtype="float16",
-        tensor_parallel_size=a.ngpu,
-        gpu_memory_utilization=0.9,
-        max_model_len=12000,
-        enable_prefix_caching=True,
-        generation_config="vllm",
-        seed=a.seed,
-        disable_log_stats=True,
-    )
-    # The run's own settings: temperature 1, no top-k or top-p, 2048 tokens per turn.
-    params = SamplingParams(temperature=1.0, top_p=1.0, top_k=0, repetition_penalty=1.0, max_tokens=2048, stop_token_ids=[151645, 151643])
     rollouts = [Rollout(t, data["system"], k, a.prefill) for t in tasks for k in range(a.k)]
     random.Random(a.seed).shuffle(rollouts)
     t0 = time.time()
     stats = run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=a.first_turn_only)
     stats.update({"wall_seconds": time.time() - t0, "bwrap": use_bwrap, "adapter": a.adapter, "prefill": a.prefill, "n": len(rollouts)})
     print(json.dumps(stats), flush=True)
-    os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    tmp = a.out + ".tmp"
-    with gzip.open(tmp, "wt", encoding="utf8") as f:
-        f.write(json.dumps({"meta": stats}) + "\n")
-        for r in rollouts:
-            f.write(json.dumps(r.to_record()) + "\n")
-    os.replace(tmp, a.out)
-    shutil.rmtree(model, ignore_errors=True)
+    write_records(a.out, stats, rollouts)
+    shutil.rmtree(os.path.join(a.work, f"merged_{a.adapter:04d}"), ignore_errors=True)
 
 
 if __name__ == "__main__":
