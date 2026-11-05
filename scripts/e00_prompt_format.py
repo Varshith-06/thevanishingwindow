@@ -1,7 +1,7 @@
 """Recover the exact prompt format by matching tokenized transcripts to logged token counts.
 
-Transcript and summary rows are matched on (first-turn action length, turn count) because their
-group indices need not line up, across this step and its neighbours.
+Searches every step's summaries for a row with the same group, trajectory and first-turn prompt
+length, then checks second-turn prompt length and action lengths under candidate renderings.
 """
 import glob
 import json
@@ -18,61 +18,61 @@ root = snapshot_download(
 )
 SPLIT = re.compile(r"(?=<\|im_start\|>)")
 HEAD = "<|im_start|>assistant\n"
-SUFFIXES = {"none": "", "open": "<think>\n", "empty1": "<think>\n</think>\n\n", "empty2": "<think>\n\n</think>\n\n"}
+EMPTY1 = "<think>\n</think>\n\n"
+EMPTY2 = "<think>\n\n</think>\n\n"
+SUFFIXES = {"none": "", "open": "<think>\n", "empty1": EMPTY1, "empty2": EMPTY2}
 
 
 def n(s):
     return len(tok(s, add_special_tokens=False)["input_ids"])
 
 
-def load_summ(step):
-    out = defaultdict(list)
-    path = os.path.join(root, f"step_{step:04d}", "rollout_summaries.jsonl")
-    if not os.path.exists(path):
-        return out
+index = defaultdict(list)
+for path in glob.glob(os.path.join(root, "step_*", "rollout_summaries.jsonl")):
+    d = int(os.path.basename(os.path.dirname(path))[5:])
     for line in open(path, encoding="utf8"):
         r = json.loads(line)
-        out[r["steps"][0]["ob_len"]].append(r)
-    return out
-
+        index[(r["group_idx"], r["traj_idx"], r["steps"][0]["ob_len"])].append((d, r))
 
 first = Counter()
 offset = Counter()
-ac_delta = Counter()
+ac = Counter()
 second = Counter()
-n_seen = 0
-for f in sorted(glob.glob(os.path.join(root, "step_*", "rollouts_with_chat.jsonl")))[::5]:
+hits = total = 0
+first_turn_forms = Counter()
+for f in sorted(glob.glob(os.path.join(root, "step_*", "rollouts_with_chat.jsonl"))):
     step = int(os.path.basename(os.path.dirname(f))[5:])
-    neighbours = {d: load_summ(step + d) for d in (-1, 0, 1)}
     for line in open(f, encoding="utf8"):
         r = json.loads(line)
         parts = [x for x in SPLIT.split(r["chat"]) if x]
         idx = [i for i, x in enumerate(parts) if x.startswith(HEAD)]
         if not idx:
             continue
-        n_seen += 1
-        base = "".join(parts[: idx[0]]).strip("\n") + "\n" + HEAD
+        total += 1
+        body = parts[idx[0]][len(HEAD):]
+        first_turn_forms[body[:24]] += 1
+        base = "".join(parts[: idx[0]]) + HEAD
         for name, suf in SUFFIXES.items():
-            count = n(base + suf)
-            for d, table in neighbours.items():
-                for s in table.get(count, []):
-                    if s["group_idx"] != r["group_idx"] or s["traj_idx"] != r["traj_idx"]:
-                        continue
-                    first[name] += 1
-                    offset[d] += 1
-                    body = parts[idx[0]][len(HEAD):]
-                    for sname, ssuf in SUFFIXES.items():
-                        if ssuf and body.startswith(ssuf):
-                            body2 = body[len(ssuf):]
-                            ac_delta[(sname, n(body2.rstrip("\n").removesuffix("<|im_end|>")) + 1 - s["steps"][0]["ac_len"])] += 1
-                    if len(idx) > 1 and len(s["steps"]) > 1:
-                        base1 = "".join(parts[: idx[1]]).strip("\n") + "\n" + HEAD
-                        ob1 = s["steps"][1]["ob_len"]
-                        for hname, text in (("as_logged", base1), ("stripped", base1.replace("<think>\n</think>\n\n", ""))):
-                            second[(hname, name, n(text + suf) - ob1)] += 1
+            matches = index.get((r["group_idx"], r["traj_idx"], n(base + suf)), [])
+            near = [(d, s) for d, s in matches if abs(d - step) <= 30]
+            if not near:
+                continue
+            hits += 1
+            d, s = min(near, key=lambda x: abs(x[0] - step))
+            first[name] += 1
+            offset[d - step] += 1
+            text = body.rstrip("\n")
+            for tname, t in (("logged", text), ("minus_empty1", text.removeprefix(EMPTY1)), ("empty2_swap", EMPTY2 + text.removeprefix(EMPTY1))):
+                ac[(tname, n(t) - s["steps"][0]["ac_len"])] += 1
+            if len(idx) > 1 and len(s["steps"]) > 1:
+                base1 = "".join(parts[: idx[1]]) + HEAD
+                ob1 = s["steps"][1]["ob_len"]
+                for hname, txt in (("as_logged", base1), ("history_stripped", base1.replace(EMPTY1, "", 1))):
+                    second[(hname, n(txt + suf) - ob1)] += 1
 
-print("transcripts checked", n_seen)
-print("exact first-turn ob_len match by suffix", first.most_common())
-print("step offset of the matching summary", offset.most_common())
-print("first action tokens minus ac_len, by logged prefix", ac_delta.most_common(8))
-print("second-turn (history, suffix, computed - logged)", second.most_common(8))
+print("transcripts", total, "matched", hits)
+print("first-turn ob_len match by suffix", first.most_common())
+print("chat dir step minus summary dir step", offset.most_common(8))
+print("first action tokens minus ac_len", ac.most_common(10))
+print("second-turn prompt, computed minus logged", second.most_common(8))
+print("first-turn openings", first_turn_forms.most_common(6))

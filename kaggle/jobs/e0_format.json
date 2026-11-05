@@ -1,0 +1,9 @@
+[
+ {"name":"fmt_a0003_open","adapter":3,"prefill":"open","n_tasks":16,"k":4,"seed":101,"first_turn_only":true},
+ {"name":"fmt_a0004_open","adapter":4,"prefill":"open","n_tasks":16,"k":4,"seed":102,"first_turn_only":true},
+ {"name":"fmt_a0005_open","adapter":5,"prefill":"open","n_tasks":16,"k":4,"seed":103,"first_turn_only":true},
+ {"name":"fmt_a0003_empty","adapter":3,"prefill":"empty","n_tasks":16,"k":4,"seed":104,"first_turn_only":true},
+ {"name":"fmt_a0004_empty","adapter":4,"prefill":"empty","n_tasks":16,"k":4,"seed":105,"first_turn_only":true},
+ {"name":"fmt_a0040_open_full","adapter":40,"prefill":"open","n_tasks":16,"k":4,"seed":106},
+ {"name":"fmt_a0040_empty_full","adapter":40,"prefill":"empty","n_tasks":16,"k":4,"seed":107}
+]
