@@ -141,7 +141,11 @@ def _canon(x):
     if isinstance(x, bool) or x is None:
         return repr(x)
     if isinstance(x, (int, float)):
-        return repr(float(x))
+        try:
+            return repr(float(x))
+        except OverflowError:
+            # Too large for a float; such ints can only equal themselves.
+            return repr(x)
     if isinstance(x, (list, tuple)):
         items = tuple(_canon(c) for c in x)
         return items[0] if len(items) == 1 else items

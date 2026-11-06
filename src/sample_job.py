@@ -96,7 +96,11 @@ def main():
     rollouts = [Rollout(t, data["system"], k, a.prefill) for t in tasks for k in range(a.k)]
     random.Random(a.seed).shuffle(rollouts)
     t0 = time.time()
-    stats = run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=a.first_turn_only)
+    partial = a.out.replace(".jsonl.gz", ".partial.jsonl.gz")
+    stats = run_rollouts(
+        llm, params, tok, rollouts, use_bwrap, first_turn_only=a.first_turn_only,
+        checkpoint=lambda s: write_records(partial, dict(s, partial=True), rollouts),
+    )
     stats.update({"wall_seconds": time.time() - t0, "bwrap": use_bwrap, "adapter": a.adapter, "prefill": a.prefill, "n": len(rollouts)})
     print(json.dumps(stats), flush=True)
     write_records(a.out, stats, rollouts)

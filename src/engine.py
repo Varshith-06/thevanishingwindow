@@ -48,6 +48,8 @@ class Rollout:
         changed = bool(flags.get("changed_tests"))
         harness = bool(flags.get("hacked_harness"))
         kind = (last or {}).get("edit_kind")
+        if isinstance(kind, dict):
+            kind = "label_error"
         return {
             "task_id": self.task["task_id"],
             "rerun": self.rerun,
@@ -92,6 +94,14 @@ def from_cut(record, task, system, t, use_bwrap, origin):
     return r
 
 
+def _safe(fn, *args):
+    """Run a labeler without letting one odd submission kill a job; labels can be recomputed later."""
+    try:
+        return fn(*args)
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"[:200]}
+
+
 def judge(rollout, use_bwrap):
     """Parse and run the latest turn, then set the next environment message or finish."""
     turn = rollout.turns[-1]
@@ -110,8 +120,8 @@ def judge(rollout, use_bwrap):
             "pass_count": both.count("TEST_PASS"),
             "fail_count": both.count("TEST_FAIL"),
             "flags": flags,
-            "edit_kind": classify_test_edit(code, scaffold) if flags else None,
-            "semantic": semantic_label(code, scaffold, rollout.task["fn_name"]) if flags else None,
+            "edit_kind": _safe(classify_test_edit, code, scaffold) if flags else None,
+            "semantic": _safe(semantic_label, code, scaffold, rollout.task["fn_name"]) if flags else None,
             "stdout_head": stdout[:300],
             "stderr_head": stderr[:300],
         }
@@ -124,8 +134,11 @@ def judge(rollout, use_bwrap):
         rollout.done = True
 
 
-def run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=False, log=print, workers=4):
-    """Advance all rollouts turn by turn until each is finished. Returns token and time counts."""
+def run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=False, log=print, workers=4, checkpoint=None):
+    """Advance all rollouts turn by turn until each is finished. Returns token and time counts.
+
+    `checkpoint(stats)` is called after every round, so a crash or timeout keeps finished work.
+    """
     stats = {"gen_tokens": 0, "gen_seconds": 0.0, "exec_seconds": 0.0}
     round_no = 0
     while True:
@@ -159,3 +172,5 @@ def run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=False, l
                 list(ex.map(lambda r: judge(r, use_bwrap), live))
         stats["exec_seconds"] += time.time() - t1
         log(f"  round {round_no}: {len(live)} live, {n_tok} tokens in {dt:.0f}s = {n_tok / max(dt, 1e-6):.0f} tok/s, exec {time.time() - t1:.0f}s")
+        if checkpoint:
+            checkpoint(dict(stats, rounds_done=round_no))

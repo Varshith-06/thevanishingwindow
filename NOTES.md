@@ -60,3 +60,13 @@ Paired difference in V, adapter 30 minus 70: 0.601 [0.339, 0.776].
 - **Part of the decision precedes the hack.** The median hack token among cut reruns is 817 (quartiles 644 to 1014). Using only prefixes written before the hack, D(768) = 0.45 and C(768) = 0.71.
 - **Semantic V by checkpoint:** 0.67 [0.41, 0.83] at adapter 30 (10 mixed tasks), 0.49 [0.39, 0.58] at adapter 45 (52 mixed tasks), 0.07 [0.01, 0.13] at adapter 70 (72 mixed tasks).
 - **Caveats.** Hack token positions are approximated from character share of the turn. Negative D values are sampling noise around zero. Thirty tasks give wide intervals.
+
+## E1 resampling, adapter 45: failed
+
+- The job crashed after round 1 (about 8 GPU-hours) with `OverflowError: int too large to convert to float`. The semantic labeler converted a continuation's huge integer gold to float, and the error propagated out of the judging thread. Nothing was saved, because jobs wrote only at the end.
+- **Fixes:** oversized ints compare as ints; labeler errors are recorded on the submission instead of raised; both jobs write `*.partial.jsonl.gz` after every round. Tests cover all three.
+- **Not rerun yet, by request.** It needs about 8 hours at 30 tasks, close to the 11-hour session limit, so the rerun should use fewer tasks or be split across sessions.
+
+## Compute used
+
+About 20 Kaggle GPU-hours this week: format check 1.6, adapters 30 and 70 sampling 4.1, adapter 45 sampling plus adapter 70 resampling 6.5, failed adapter 45 resampling 7.9, plus two short failed starts.

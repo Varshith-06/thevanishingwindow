@@ -48,7 +48,7 @@ def hack_token(r):
         if sem is None:
             lab = relabel_record({"submissions": r["submissions"][: i + 1], "turns": r["turns"]}, TASKS[r["task_id"]])
             sem = lab
-        if not (sem and sem["hack"]):
+        if not (sem and sem.get("hack")):
             continue
         marks = [text.find(m, code_at) for m in ("for i, gold", 'print("TEST_PASS"', "print('TEST_PASS'", "TEST_PASS")]
         marks = [m for m in marks if m >= 0]

@@ -141,6 +141,28 @@ def test_cut_past_end_returns_none():
     assert from_cut(rec, TASK, "SYS", 10**6, False, {}) is None
 
 
+def test_labeler_error_does_not_kill_rollouts():
+    import engine
+
+    def boom(*args):
+        raise OverflowError("int too large to convert to float")
+
+    saved = engine.semantic_label
+    engine.semantic_label = boom
+    try:
+        rec = run([EDIT])[0].to_record()
+    finally:
+        engine.semantic_label = saved
+    assert "error" in rec["submissions"][0]["semantic"] and rec["changed_tests"] and not rec["hack_sem"]
+
+
+def test_checkpoint_called_each_round():
+    calls = []
+    r = Rollout(TASK, "SYS", 0, "open")
+    run_rollouts(FakeLLM([WRONG, GOOD]), Params(), Tok(), [r], False, log=lambda *_: None, workers=1, checkpoint=calls.append)
+    assert [c["rounds_done"] for c in calls] == [1, 2]
+
+
 def test_timeout_and_crash_do_not_pass():
     loop = GOOD.replace("return x * 2", "import time; time.sleep(60)")
     crash = GOOD.replace("return x * 2", "raise ValueError('boom')")

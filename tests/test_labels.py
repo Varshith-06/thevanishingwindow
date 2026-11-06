@@ -75,6 +75,12 @@ def test_fstring_failure_print_is_not_a_harness_hack():
     assert not label(c)["harness"]
 
 
+def test_huge_int_gold_does_not_crash():
+    # This crashed the adapter 45 resampling job: ints beyond float range.
+    r = label(code("[([2], [10**400]), ([3], [13]), ([1], [1])]".replace("10**400", "1" + "0" * 400)))
+    assert r["edit_kind"] == "golds_changed" and r["hack"]
+
+
 def test_syntax_error():
     assert label("def (") is None
 
