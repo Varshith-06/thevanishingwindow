@@ -67,6 +67,24 @@ Paired difference in V, adapter 30 minus 70: 0.601 [0.339, 0.776].
 - **Fixes:** oversized ints compare as ints; labeler errors are recorded on the submission instead of raised; both jobs write `*.partial.jsonl.gz` after every round. Tests cover all three.
 - **Not rerun yet, by request.** It needs about 8 hours at 30 tasks, close to the 11-hour session limit, so the rerun should use fewer tasks or be split across sessions.
 
+## E1 resampling, adapter 45: rerun (30 mixed tasks, 4 reruns, 4 continuations per cut)
+
+- **Split in two.** Two kernels of 15 tasks each, run in parallel (`data/plans/e1_a0045_a.json`, `_b.json`), then merged into `runs/e1_cut/raw/e1_a0045_cut.jsonl.gz`. Half A took 4.6 hours and half B 6.1 hours. There were no labeler errors.
+
+| Cut | D(t) [95% CI] | C(t) [95% CI] | Share of all variance decided | Cuts before `<code>` |
+| --- | --- | --- | --- | --- |
+| 32 | 0.04 [-0.03, 0.11] | 0.39 [0.30, 0.49] | 0.51 | 100% |
+| 128 | 0.02 [-0.07, 0.15] | 0.54 [0.38, 0.70] | 0.50 | 100% |
+| 256 | 0.17 [0.03, 0.33] | 0.64 [0.53, 0.75] | 0.57 | 86% |
+| 512 | 0.32 [0.15, 0.50] | 0.68 [0.53, 0.83] | 0.65 | 30% |
+| 768 | 0.25 [0.09, 0.41] | 0.79 [0.67, 0.90] | 0.61 | 22% |
+
+- **Earlier than at adapter 70.** D becomes clearly positive at 256 tokens rather than 512, and the task fixes half the variance (V = 0.49) rather than 0.07.
+- **Hacks also come earlier.** The median hack token is 710 (quartiles 528 to 1609, where the upper tail is hacks in later turns). Using pre-hack prefixes only, D(512) = 0.23 and C(512) = 0.65, but D(768) = 0.02: by 768 tokens, most decided reruns have already hacked.
+- **To check.** C(32) = 0.39 has an interval that only just excludes 0.5, and D(768) < D(512) although D should not fall in expectation. Both may be noise at 30 tasks. A below-chance AUC could also come from how ties or tasks are weighted, so the estimator deserves a look.
+
 ## Compute used
 
-About 20 Kaggle GPU-hours this week: format check 1.6, adapters 30 and 70 sampling 4.1, adapter 45 sampling plus adapter 70 resampling 6.5, failed adapter 45 resampling 7.9, plus two short failed starts.
+About 20 Kaggle GPU-hours in the week of 2026-11-02: format check 1.6, adapters 30 and 70 sampling 4.1, adapter 45 sampling plus adapter 70 resampling 6.5, failed adapter 45 resampling 7.9, plus two short failed starts.
+
+Week of 2026-11-16: adapter 45 resampling rerun, 10.7 GPU-hours (two parallel sessions of 4.6 and 6.1 hours).
