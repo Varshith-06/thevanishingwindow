@@ -66,7 +66,21 @@ class Rollout:
             "edit_kind": kind,
             "test_pass": bool(last and last["pass_count"] > 0 and last["fail_count"] == 0),
             "n_turns": len(self.turns),
+            "done": self.done,
+            "forced_ids": self.forced_ids,
         }
+
+    @classmethod
+    def from_record(cls, rec, task, system):
+        """Rebuild a rollout from a saved record, at the turn boundary where it was saved, so a stopped job
+        can resume. Unfinished rollouts must continue rather than restart: restarting them would favour
+        rollouts that finish in few turns."""
+        r = cls(task, system, rec["rerun"], rec["prefill"])
+        r.origin = rec.get("origin")
+        r.turns, r.submissions, r.env_msgs = list(rec["turns"]), list(rec["submissions"]), list(rec["env_msgs"])
+        r.done = rec["done"]
+        r.forced_ids = rec.get("forced_ids")
+        return r
 
 
 def cut_position(record, t):
@@ -134,43 +148,60 @@ def judge(rollout, use_bwrap):
         rollout.done = True
 
 
-def run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=False, log=print, workers=4, checkpoint=None):
+def run_rollouts(llm, params, tok, rollouts, use_bwrap, first_turn_only=False, log=print, workers=4, checkpoint=None,
+                 chunk=None, deadline=None):
     """Advance all rollouts turn by turn until each is finished. Returns token and time counts.
 
-    `checkpoint(stats)` is called after every round, so a crash or timeout keeps finished work.
+    Each round is generated in chunks of `chunk` rollouts, and `checkpoint(stats)` is called after every
+    chunk, so a crash or timeout keeps finished work. With a `deadline` (epoch seconds), no chunk starts
+    unless the previous chunk's duration says it will end in time; stats["stopped"] is then True and every
+    rollout sits at a turn boundary, ready for Rollout.from_record.
     """
-    stats = {"gen_tokens": 0, "gen_seconds": 0.0, "exec_seconds": 0.0}
-    round_no = 0
+    stats = {"gen_tokens": 0, "gen_seconds": 0.0, "exec_seconds": 0.0, "stopped": False}
+    round_no, last_chunk = 0, 0.0
     while True:
-        live = [r for r in rollouts if not r.done]
-        if not live:
+        pending = [r for r in rollouts if not r.done]
+        if not pending:
             return stats
         round_no += 1
-        t0 = time.time()
-        reqs = [{"prompt_token_ids": r.prompt_ids(tok)} for r in live]
-        per_req = []
+        size = chunk or len(pending)
+        for start in range(0, len(pending), size):
+            if deadline and time.time() + 1.25 * last_chunk > deadline:
+                stats["stopped"] = True
+                log(f"  stopping before the deadline: {len(pending) - start} rollouts left in round {round_no}")
+                return stats
+            c0 = time.time()
+            _advance(llm, params, tok, pending[start : start + size], use_bwrap, first_turn_only, log, workers, stats, round_no)
+            last_chunk = time.time() - c0
+            if checkpoint:
+                checkpoint(dict(stats, rounds_done=round_no if start + size >= len(pending) else round_no - 1))
+
+
+def _advance(llm, params, tok, live, use_bwrap, first_turn_only, log, workers, stats, round_no):
+    """Generate one turn for each rollout in `live`, then judge it."""
+    t0 = time.time()
+    reqs = [{"prompt_token_ids": r.prompt_ids(tok)} for r in live]
+    per_req = []
+    for r in live:
+        p = copy.copy(params)
+        p.max_tokens = params.max_tokens - len(r.forced_ids or [])
+        per_req.append(p)
+    outs = llm.generate(reqs, per_req, use_tqdm=False)
+    dt = time.time() - t0
+    n_tok = 0
+    for r, o in zip(live, outs):
+        c = o.outputs[0]
+        ids = [i for i in c.token_ids if i != IM_END]
+        n_tok += len(ids)
+        r.record(ids, c.text, c.finish_reason, tok)
+    stats["gen_tokens"] += n_tok
+    stats["gen_seconds"] += dt
+    t1 = time.time()
+    if first_turn_only:
         for r in live:
-            p = copy.copy(params)
-            p.max_tokens = params.max_tokens - len(r.forced_ids or [])
-            per_req.append(p)
-        outs = llm.generate(reqs, per_req, use_tqdm=False)
-        dt = time.time() - t0
-        n_tok = 0
-        for r, o in zip(live, outs):
-            c = o.outputs[0]
-            ids = [i for i in c.token_ids if i != IM_END]
-            n_tok += len(ids)
-            r.record(ids, c.text, c.finish_reason, tok)
-        stats["gen_tokens"] += n_tok
-        stats["gen_seconds"] += dt
-        t1 = time.time()
-        if first_turn_only:
-            for r in live:
-                r.done = True
-        else:
-            with ThreadPoolExecutor(workers) as ex:
-                list(ex.map(lambda r: judge(r, use_bwrap), live))
-        stats["exec_seconds"] += time.time() - t1
-        log(f"  round {round_no}: {len(live)} live, {n_tok} tokens in {dt:.0f}s = {n_tok / max(dt, 1e-6):.0f} tok/s, exec {time.time() - t1:.0f}s")
-        if checkpoint:
-            checkpoint(dict(stats, rounds_done=round_no))
+            r.done = True
+    else:
+        with ThreadPoolExecutor(workers) as ex:
+            list(ex.map(lambda r: judge(r, use_bwrap), live))
+    stats["exec_seconds"] += time.time() - t1
+    log(f"  round {round_no}: {len(live)} rollouts, {n_tok} tokens in {dt:.0f}s = {n_tok / max(dt, 1e-6):.0f} tok/s, exec {time.time() - t1:.0f}s")

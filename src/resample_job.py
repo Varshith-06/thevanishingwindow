@@ -10,7 +10,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 from engine import from_cut, run_rollouts
-from sample_job import setup, write_records
+from sample_job import add_resume_args, finish, load_resume, setup, write_records
 
 
 def main():
@@ -25,6 +25,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--work", default="/kaggle/tmp/vw")
     ap.add_argument("--ngpu", type=int, default=2)
+    add_resume_args(ap)
     a = ap.parse_args()
     if os.path.exists(a.out):
         print("already done", a.out, flush=True)
@@ -38,7 +39,10 @@ def main():
     tok, llm, params, data, use_bwrap = setup(a)
     tasks = {t["task_id"]: t for t in data["tasks"]}
     cuts = [int(c) for c in a.cuts.split(",")]
-    rollouts, finished = [], 0
+    rollouts, finished, prior = [], 0, None
+    if a.resume:
+        prior, rollouts = load_resume(a.resume, data)
+        plan = []
     for item in plan:
         for rerun in item["reruns"]:
             rec = records[(item["task_id"], rerun)]
@@ -50,14 +54,16 @@ def main():
                     else:
                         rollouts.append(r)
     print(f"{len(rollouts)} continuations; {finished} skipped because the rerun ended before the cut", flush=True)
-    random.Random(a.seed).shuffle(rollouts)
+    if not a.resume:
+        random.Random(a.seed).shuffle(rollouts)
     t0 = time.time()
     partial = a.out.replace(".jsonl.gz", ".partial.jsonl.gz")
-    stats = run_rollouts(llm, params, tok, rollouts, use_bwrap, checkpoint=lambda s: write_records(partial, dict(s, partial=True), rollouts))
-    stats.update({"wall_seconds": time.time() - t0, "bwrap": use_bwrap, "adapter": a.adapter, "prefill": "open", "n": len(rollouts), "cuts": cuts, "k_prime": a.k_prime})
-    print(json.dumps(stats), flush=True)
-    write_records(a.out, stats, rollouts)
-    shutil.rmtree(os.path.join(a.work, f"merged_{a.adapter:04d}"), ignore_errors=True)
+    stats = run_rollouts(
+        llm, params, tok, rollouts, use_bwrap, checkpoint=lambda s: write_records(partial, dict(s, partial=True), rollouts),
+        chunk=a.chunk, deadline=a.deadline,
+    )
+    stats["wall_seconds"] = time.time() - t0
+    finish(a, stats, rollouts, t0, {"bwrap": use_bwrap, "adapter": a.adapter, "prefill": "open", "n": len(rollouts), "cuts": cuts, "k_prime": a.k_prime}, prior)
 
 
 if __name__ == "__main__":

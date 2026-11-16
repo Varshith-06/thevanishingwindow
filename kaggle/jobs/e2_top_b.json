@@ -1,0 +1,26 @@
+[
+ {
+  "name": "e2_a0020_top",
+  "adapter": 20,
+  "prefill": "open",
+  "n_tasks": 100,
+  "k": 8,
+  "seed": 401
+ },
+ {
+  "name": "e2_a0055_top",
+  "adapter": 55,
+  "prefill": "open",
+  "n_tasks": 100,
+  "k": 8,
+  "seed": 404
+ },
+ {
+  "name": "e2_a0060_top",
+  "adapter": 60,
+  "prefill": "open",
+  "n_tasks": 100,
+  "k": 8,
+  "seed": 405
+ }
+]

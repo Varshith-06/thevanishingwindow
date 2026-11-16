@@ -94,6 +94,19 @@ Prompted by two odd adapter 45 numbers. Scripts were run once in a scratch folde
 - **Reruns that ended before the cut inflate late D.** Such a rerun is decided because it is over, not because its prefix fixed the outcome. At adapter 70, reruns that had ended alone give D(768) about 0.35 under the null, and reruns still running give D(768) = 0.16 [0.03, 0.30], against 0.53 for all reruns. Without them, the pre-hack figures drop from D = 0.45 and C = 0.71 to D = 0.18 and C = 0.63. Adapter 45 barely changes, because few of its reruns end before 768 tokens. The analysis now reports `*_running` columns, and the figure draws them dashed. For the running-only numbers, the denominator is still the whole task's variance, so they are a sensitivity check rather than a separate estimand.
 - **Consequence.** The adapter 70 story moves from "much of the decision precedes the hack" to "the decision mostly forms near the hack, with a small pre-hack signal". E2 should report running-only D, use `d_null` for tests, and use more tasks per checkpoint.
 
+## Stopping and resuming across quota weeks (2026-11-16)
+
+- **Why.** E2 needs several weeks of Kaggle quota, and a session cut off when quota runs out may lose its output.
+- **Stopping.** `submit.py --budget HOURS` gives the session a deadline. Each round is generated in chunks of 192 rollouts, saved after every chunk, and no chunk starts unless the last one's duration says it will end in time. A stopped job writes only `*.partial.jsonl.gz`, with every rollout at a turn boundary.
+- **Resuming.** A job given `--resume PATH` rebuilds each rollout from the partial file and continues the unfinished ones from their last turn. Restarting them from scratch would favour rollouts that finish in few turns. Run totals (tokens, seconds, sessions) add up across sessions.
+- **Tests.** Engine tests cover the deadline stop, an exact resume and pending cut prefixes. A job-level check of stop then resume passed in WSL.
+
+## E2 plan
+
+- **Checkpoints:** 20, 30, 40, 45, 50, 55, 60 and 70, dense around the onset near step 40. Adapters 30, 45 and 70 already have 100 tasks x 8 reruns.
+- **Week of 2026-11-16:** top-level runs (100 tasks x 8 reruns, same tasks as E1) at 40 and 50 in one session and at 20, 55 and 60 in another, each capped at 7.5 hours of the roughly 19 left. Anything unfinished resumes after the quota resets.
+- **Later weeks:** cut resampling at each checkpoint with a usable number of mixed tasks, reporting running-only D and C with `d_null` tests.
+
 ## Compute used
 
 About 20 Kaggle GPU-hours in the week of 2026-11-02: format check 1.6, adapters 30 and 70 sampling 4.1, adapter 45 sampling plus adapter 70 resampling 6.5, failed adapter 45 resampling 7.9, plus two short failed starts.

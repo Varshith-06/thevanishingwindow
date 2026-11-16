@@ -1,6 +1,8 @@
 """Engine tests with a fake model and synthetic code. Linux only: code execution needs `resource`."""
+import json
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 from engine import Rollout, cut_position, from_cut, run_rollouts
@@ -161,6 +163,41 @@ def test_checkpoint_called_each_round():
     r = Rollout(TASK, "SYS", 0, "open")
     run_rollouts(FakeLLM([WRONG, GOOD]), Params(), Tok(), [r], False, log=lambda *_: None, workers=1, checkpoint=calls.append)
     assert [c["rounds_done"] for c in calls] == [1, 2]
+
+
+class SlowLLM(FakeLLM):
+    def generate(self, reqs, params, use_tqdm=False):
+        time.sleep(0.3)
+        return super().generate(reqs, params, use_tqdm)
+
+
+def test_deadline_stops_between_chunks():
+    rs = [Rollout(dict(TASK, task_id=i), "SYS", 0, "open") for i in range(3)]
+    stats = run_rollouts(SlowLLM([WRONG] * 3), Params(), Tok(), rs, False, log=lambda *_: None, workers=1, chunk=1, deadline=time.time() + 0.5)
+    assert stats["stopped"] and [len(r.turns) for r in rs] == [1, 0, 0]
+
+
+def test_resume_continues_where_it_stopped():
+    script = [WRONG, WRONG, GOOD]
+    whole = run(script)[0].to_record()
+    r = Rollout(TASK, "SYS", 0, "open")
+    run_rollouts(SlowLLM(script[:1]), Params(), Tok(), [r], False, log=lambda *_: None, workers=1, chunk=1, deadline=time.time() + 0.5)
+    saved = json.loads(json.dumps(r.to_record()))
+    assert saved["n_turns"] == 1 and not saved["done"]
+    back = Rollout.from_record(saved, TASK, "SYS")
+    llm = FakeLLM(script[1:])
+    run_rollouts(llm, Params(), Tok(), [back], False, log=lambda *_: None, workers=1)
+    assert len(llm.prompts) == 2 and "<output>" in llm.prompts[0]
+    got = back.to_record()
+    for k in ("turns", "env_msgs", "hack_sem", "changed_tests", "test_pass", "n_turns", "done"):
+        assert got[k] == whole[k], k
+
+
+def test_resume_keeps_pending_cut_prefix():
+    rec = run([WRONG, GOOD])[0].to_record()
+    c = from_cut(rec, TASK, "SYS", len(rec["turns"][0]["ids"]) + 5, False, {"cut": 5})
+    back = Rollout.from_record(json.loads(json.dumps(c.to_record())), TASK, "SYS")
+    assert back.forced_ids == c.forced_ids and back.prompt_ids(Tok()) == c.prompt_ids(Tok()) and not back.done
 
 
 def test_timeout_and_crash_do_not_pass():

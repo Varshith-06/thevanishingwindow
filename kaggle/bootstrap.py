@@ -10,6 +10,9 @@ import time
 COMMIT = "__COMMIT__"
 JOBS = json.loads(r"""__JOBS__""")
 VLLM = "__VLLM__"
+BUDGET_HOURS = float("__BUDGET__")  # GPU time this session may use; jobs stop at a turn boundary before it
+START = time.time()
+DEADLINE = START + BUDGET_HOURS * 3600
 WORK = "/kaggle/tmp/vw"
 OUT = "/kaggle/working/out"
 
@@ -39,6 +42,10 @@ for job in JOBS:
     script = job.pop("script", "sample_job.py")
     args = " ".join(f"--{k.replace('_', '-')}" + ("" if v is True else f" {v}") for k, v in job.items())
     out = f"{OUT}/{name}.jsonl.gz"
+    if DEADLINE - time.time() < 1800:
+        print(f"=== {name} skipped: less than 30 minutes of budget left", flush=True)
+        continue
+    args += f" --deadline {DEADLINE - 600:.0f}"
     print(f"=== {name} started {time.strftime('%H:%M:%S')}", flush=True)
     t1 = time.time()
     r = sh(
@@ -46,6 +53,6 @@ for job in JOBS:
         f"--tasks /kaggle/tmp/repo/data/tasks_v1.json --out {out} --work {WORK} {args} 2>&1 | tee {OUT}/{name}.log | grep -v -E 'INFO|WARNING|it/s|Processed prompts' | tail -40",
         check=False,
     )
-    print(f"=== {name} finished in {time.time() - t1:.0f}s, wrote={os.path.exists(out)}", flush=True)
+    print(f"=== {name} finished in {time.time() - t1:.0f}s, wrote={os.path.exists(out)}, partial={os.path.exists(out.replace('.jsonl.gz', '.partial.jsonl.gz'))}", flush=True)
 shutil.rmtree(f"{WORK}/hf", ignore_errors=True)
 sh(f"ls -la {OUT} | cat")
