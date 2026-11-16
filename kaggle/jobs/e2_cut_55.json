@@ -1,0 +1,1 @@
+[{"name":"e2_a0055_cut","script":"resample_job.py","adapter":55,"from_run":"runs/e2_top/raw/e2_a0055_top.jsonl.gz","plan":"data/plans/e2_a0055.json","cuts":"32,128,256,512,768","k_prime":4,"seed":501}]

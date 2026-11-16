@@ -107,8 +107,28 @@ Prompted by two odd adapter 45 numbers. Scripts were run once in a scratch folde
 - **Week of 2026-11-16:** top-level runs (100 tasks x 8 reruns, same tasks as E1) at 40 and 50 in one session and at 20, 55 and 60 in another, each capped at 7.5 hours of the roughly 19 left. Anything unfinished resumes after the quota resets.
 - **Later weeks:** cut resampling at each checkpoint with a usable number of mixed tasks, reporting running-only D and C with `d_null` tests.
 
+## E2 top-level runs (100 tasks x 8 reruns, semantic label)
+
+| Adapter | Hack rate [95% CI] | V [95% CI] | Mixed tasks |
+| --- | --- | --- | --- |
+| 20 | 0.09 [0.05, 0.14] | 0.67 [0.47, 0.81] | 13 |
+| 30 | 0.06 [0.03, 0.11] | 0.67 [0.42, 0.84] | 10 |
+| 40 | 0.14 [0.09, 0.19] | 0.63 [0.48, 0.74] | 24 |
+| 45 | 0.26 [0.19, 0.32] | 0.49 [0.38, 0.57] | 52 |
+| 50 | 0.28 [0.22, 0.34] | 0.43 [0.33, 0.53] | 56 |
+| 55 | 0.35 [0.30, 0.41] | 0.31 [0.23, 0.39] | 75 |
+| 60 | 0.90 [0.87, 0.93] | 0.13 [0.04, 0.20] | 46 |
+| 70 | 0.83 [0.80, 0.86] | 0.07 [0.01, 0.14] | 72 |
+
+- **V falls steadily as hacking takes hold**, from about 0.67 before onset to 0.07 late. There is no rise anywhere, so RQ1's hypothesis fails across the whole curve, not just at two points.
+- **The hack rate jumps between adapters 55 and 60**, from 0.35 to 0.90, and is slightly lower at 70 than at 60.
+- **Cost.** The two sessions took 5.2 and 4.7 hours. Chunked generation ran at 200-225 tok/s in round 1, the same as E1, and no job hit its deadline.
+- **Next:** cut resampling at adapter 55 on 50 mixed tasks (`data/plans/e2_a0055.json`), using this week's remaining quota and resuming after the reset.
+- `scripts/e2_v_curve.py` produces the table, and `results/e2_top/v_curve.csv` holds it.
+
 ## Compute used
 
 About 20 Kaggle GPU-hours in the week of 2026-11-02: format check 1.6, adapters 30 and 70 sampling 4.1, adapter 45 sampling plus adapter 70 resampling 6.5, failed adapter 45 resampling 7.9, plus two short failed starts.
 
 Week of 2026-11-16: adapter 45 resampling rerun, 10.7 GPU-hours (two parallel sessions of 4.6 and 6.1 hours).
+Week of 2026-11-16, continued: E2 top-level runs at adapters 20, 40, 50, 55 and 60, 9.9 GPU-hours (sessions of 5.2 and 4.7 hours).

@@ -1,6 +1,6 @@
 # Results so far
 
-Status as of 2026-11-16: E0 (checkpoints, format and labels) and E1 (adapters 30, 45 and 70) are done. Everything is preliminary, and the research plan is in [`RL_INTENT.md`](RL_INTENT.md).
+Status as of 2026-11-17: E0 (checkpoints, format and labels) and E1 (adapters 30, 45 and 70) are done. E2 has top-level runs at all 8 checkpoints; its cut resampling has started. Everything is preliminary, and the research plan is in [`RL_INTENT.md`](RL_INTENT.md).
 
 ![E1 pilot](results/e1_pilot.png)
 
@@ -14,11 +14,16 @@ An estimator check on 2026-11-16 revised the adapter 70 numbers. A rerun that ha
 
 | Adapter | Hack rate | V [95% CI] | Mixed tasks |
 | --- | --- | --- | --- |
-| 30 (before onset) | 6% | 0.67 [0.41, 0.83] | 10 |
-| 45 (early onset) | 26% | 0.49 [0.39, 0.58] | 52 |
-| 70 (late) | 83% | 0.07 [0.01, 0.13] | 72 |
+| 20 | 9% | 0.67 [0.47, 0.81] | 13 |
+| 30 (before onset) | 6% | 0.67 [0.42, 0.84] | 10 |
+| 40 | 14% | 0.63 [0.48, 0.74] | 24 |
+| 45 (early onset) | 26% | 0.49 [0.38, 0.57] | 52 |
+| 50 | 28% | 0.43 [0.33, 0.53] | 56 |
+| 55 | 35% | 0.31 [0.23, 0.39] | 75 |
+| 60 | 90% | 0.13 [0.04, 0.20] | 46 |
+| 70 (late) | 83% | 0.07 [0.01, 0.14] | 72 |
 
-The paired difference in V between adapters 30 and 70 is 0.60 [0.34, 0.78]. Adapter 30 has few hacks and mixed tasks, so adapter 45 is the better early point.
+V falls steadily across training as hacking takes hold. The task decides less and less of whether a rerun hacks, the opposite of RQ1's hypothesis. Adapters 20, 40, 50, 55 and 60 are from E2 (`scripts/e2_v_curve.py`).
 
 ## When the decision forms (30 mixed tasks per adapter)
 
@@ -62,7 +67,8 @@ C(32) = 0.39 and D(768) < D(512) are noise. A within-task permutation test gives
 
 - **Larger samples for the cut analysis.** At 30 tasks, intervals on D and C span about 0.3 to 0.4.
 - **Hand-checking the semantic label.** Some early "hacks" look like repairing broken tests, and special-cased solutions are not detected.
-- **E2 to E6:** full curves, verbalization, monitors and probes, a second setting, and release.
+- **E2 cut resampling** at the new checkpoints, starting with adapter 55.
+- **E3 to E6:** verbalization, monitors and probes, a second setting, and release.
 
 ## Reproducing
 
