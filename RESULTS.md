@@ -6,7 +6,9 @@ Status as of 2026-11-16: E0 (checkpoints, format and labels) and E1 (adapters 30
 
 ## Headline
 
-In this run, RL does not close the monitoring window. Late in training, the task predicts little about whether a given rerun hacks, and the hack decision forms while the model writes, partly before the hack appears in the text. This is the opposite of the plan's RQ1 hypothesis. At early onset (adapter 45), the task fixes about half the variance, and the decision forms a little earlier in the text, between about 256 and 512 tokens.
+In this run, RL does not close the monitoring window. Late in training (adapter 70), the task predicts little about whether a given rerun hacks (V = 0.07). Among reruns still being written, even 768 tokens of text decide only about a sixth of the remaining variance (D = 0.16), so most of the decision forms late, near the hack itself, which comes at a median of 817 tokens. This is the opposite of the plan's RQ1 hypothesis. At early onset (adapter 45), the task fixes about half the variance, and the text decides more, earlier: D = 0.17 at 256 tokens and 0.33 at 512.
+
+An estimator check on 2026-11-16 revised the adapter 70 numbers. A rerun that has already ended counts as decided, which inflated D(768) from 0.16 to 0.53. The tables below give both versions.
 
 ## Read-time share V on the same 100 tasks (8 reruns each)
 
@@ -20,31 +22,33 @@ The paired difference in V between adapters 30 and 70 is 0.60 [0.34, 0.78]. Adap
 
 ## When the decision forms (30 mixed tasks per adapter)
 
+"All" counts reruns that ended before the cut as decided. "Running" uses only reruns still being written at the cut, which is what matters for a monitor reading along. The null D is what reruns that already ended contribute when the prefix carries no information, and p tests D against that null.
+
 ### Adapter 70
 
-| Cut (tokens) | D(t) [95% CI] | C(t) [95% CI] |
-| --- | --- | --- |
-| 32 | 0.04 [-0.05, 0.16] | 0.52 [0.39, 0.65] |
-| 128 | -0.02 [-0.08, 0.05] | 0.50 [0.36, 0.64] |
-| 256 | 0.00 [-0.07, 0.09] | 0.64 [0.53, 0.74] |
-| 512 | 0.16 [0.02, 0.33] | 0.60 [0.48, 0.73] |
-| 768 | 0.53 [0.33, 0.72] | 0.83 [0.70, 0.94] |
+| Cut | D, all [95% CI] | D, running [95% CI] | Null D | p | C, all [95% CI] | C, running [95% CI] | Running reruns |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 0.04 [-0.05, 0.16] | 0.04 [-0.05, 0.16] | 0.00 | 0.16 | 0.52 [0.38, 0.65] | 0.52 [0.38, 0.65] | 120 |
+| 128 | -0.02 [-0.08, 0.05] | -0.02 [-0.08, 0.05] | 0.00 | 0.68 | 0.50 [0.36, 0.64] | 0.50 [0.36, 0.64] | 120 |
+| 256 | 0.00 [-0.07, 0.09] | 0.00 [-0.07, 0.09] | 0.00 | 0.44 | 0.64 [0.53, 0.74] | 0.64 [0.53, 0.74] | 120 |
+| 512 | 0.16 [0.02, 0.33] | 0.18 [0.01, 0.40] | 0.06 | 0.010 | 0.60 [0.47, 0.73] | 0.56 [0.44, 0.69] | 117 |
+| 768 | 0.53 [0.33, 0.72] | 0.16 [0.03, 0.30] | 0.35 | <0.001 | 0.83 [0.70, 0.94] | 0.71 [0.51, 0.89] | 95 |
 
-The median hack token is about 817. Using only prefixes written before the hack, D(768) = 0.45 and C(768) = 0.71: a monitor reading the text has a real window.
+The median hack token is about 817. For reruns still running that have not yet hacked, D(768) = 0.18 and C(768) = 0.63. A monitor reading the text before the hack has a small window at adapter 70, not the large one the earlier figure (D = 0.45) suggested.
 
 ### Adapter 45
 
-| Cut (tokens) | D(t) [95% CI] | C(t) [95% CI] |
-| --- | --- | --- |
-| 32 | 0.04 [-0.03, 0.11] | 0.39 [0.30, 0.49] |
-| 128 | 0.02 [-0.07, 0.15] | 0.54 [0.38, 0.70] |
-| 256 | 0.17 [0.03, 0.33] | 0.64 [0.53, 0.75] |
-| 512 | 0.32 [0.15, 0.50] | 0.68 [0.53, 0.83] |
-| 768 | 0.25 [0.09, 0.41] | 0.79 [0.67, 0.90] |
+| Cut | D, all [95% CI] | D, running [95% CI] | Null D | p | C, all [95% CI] | C, running [95% CI] | Running reruns |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 0.04 [-0.03, 0.11] | 0.04 [-0.03, 0.11] | 0.00 | 0.14 | 0.39 [0.30, 0.49] | 0.39 [0.30, 0.49] | 120 |
+| 128 | 0.02 [-0.07, 0.15] | 0.02 [-0.07, 0.15] | 0.00 | 0.26 | 0.54 [0.38, 0.70] | 0.54 [0.38, 0.70] | 120 |
+| 256 | 0.17 [0.03, 0.33] | 0.17 [0.03, 0.33] | 0.00 | <0.001 | 0.64 [0.53, 0.75] | 0.64 [0.53, 0.75] | 120 |
+| 512 | 0.32 [0.15, 0.50] | 0.33 [0.16, 0.51] | 0.00 | <0.001 | 0.68 [0.53, 0.83] | 0.68 [0.52, 0.83] | 114 |
+| 768 | 0.25 [0.09, 0.41] | 0.29 [0.08, 0.53] | 0.03 | <0.001 | 0.79 [0.67, 0.90] | 0.74 [0.60, 0.88] | 90 |
 
-Hacks come earlier here (median token 710, quartiles 528 to 1609), so the window opens and closes earlier. Using only prefixes written before the hack, D(512) = 0.23 and C(512) = 0.65, while D(768) falls to 0.02. Counting the task as well, about half of all variance is decided before the model writes anything (0.51 at 32 tokens), against 0.11 at adapter 70.
+Hacks come earlier here (median token 710, quartiles 528 to 1609), so the window opens and closes earlier. For reruns still running that have not yet hacked, D(512) = 0.25 and C(512) = 0.65, while D(768) falls to 0.02. Counting the task as well, about half of all variance is decided before the model writes anything (0.51 at 32 tokens), against 0.11 at adapter 70.
 
-Two numbers look off and need checking: C(32) = 0.39 is below chance, and D(768) is lower than D(512). Both could be noise at 30 tasks, since the intervals overlap.
+C(32) = 0.39 and D(768) < D(512) are noise. A within-task permutation test gives p = 0.13 for C(32), and the paired difference D(768) - D(512) is -0.07 [-0.23, 0.09].
 
 ## Findings that change the plan
 
@@ -56,6 +60,7 @@ Two numbers look off and need checking: C(32) = 0.39 is below chance, and D(768)
 
 ## What is not done
 
+- **Larger samples for the cut analysis.** At 30 tasks, intervals on D and C span about 0.3 to 0.4.
 - **Hand-checking the semantic label.** Some early "hacks" look like repairing broken tests, and special-cased solutions are not detected.
 - **E2 to E6:** full curves, verbalization, monitors and probes, a second setting, and release.
 

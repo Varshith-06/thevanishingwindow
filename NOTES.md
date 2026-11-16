@@ -57,7 +57,7 @@ Paired difference in V, adapter 30 minus 70: 0.601 [0.339, 0.776].
 | 768 | 0.53 [0.33, 0.72] | 0.83 [0.70, 0.94] | 0.56 | 8% |
 
 - **Late hacking is not a reflex.** The task fixes little (V = 0.07), and the first 256 tokens fix nothing measurable. The decision forms between about 256 and 768 tokens, near the start of the code.
-- **Part of the decision precedes the hack.** The median hack token among cut reruns is 817 (quartiles 644 to 1014). Using only prefixes written before the hack, D(768) = 0.45 and C(768) = 0.71.
+- **Part of the decision precedes the hack.** The median hack token among cut reruns is 817 (quartiles 644 to 1014). Using only prefixes written before the hack, D(768) = 0.45 and C(768) = 0.71. *Superseded: these numbers include reruns that had already ended; for reruns still running, D = 0.18 and C = 0.63 (see Estimator check).*
 - **Semantic V by checkpoint:** 0.67 [0.41, 0.83] at adapter 30 (10 mixed tasks), 0.49 [0.39, 0.58] at adapter 45 (52 mixed tasks), 0.07 [0.01, 0.13] at adapter 70 (72 mixed tasks).
 - **Caveats.** Hack token positions are approximated from character share of the turn. Negative D values are sampling noise around zero. Thirty tasks give wide intervals.
 
@@ -81,7 +81,18 @@ Paired difference in V, adapter 30 minus 70: 0.601 [0.339, 0.776].
 
 - **Earlier than at adapter 70.** D becomes clearly positive at 256 tokens rather than 512, and the task fixes half the variance (V = 0.49) rather than 0.07.
 - **Hacks also come earlier.** The median hack token is 710 (quartiles 528 to 1609, where the upper tail is hacks in later turns). Using pre-hack prefixes only, D(512) = 0.23 and C(512) = 0.65, but D(768) = 0.02: by 768 tokens, most decided reruns have already hacked.
-- **To check.** C(32) = 0.39 has an interval that only just excludes 0.5, and D(768) < D(512) although D should not fall in expectation. Both may be noise at 30 tasks. A below-chance AUC could also come from how ties or tasks are weighted, so the estimator deserves a look.
+- **To check (resolved in the Estimator check: both are noise).** C(32) = 0.39 has an interval that only just excludes 0.5, and D(768) < D(512) although D should not fall in expectation. Both may be noise at 30 tasks. A below-chance AUC could also come from how ties or tasks are weighted, so the estimator deserves a look.
+
+## Estimator check (2026-11-16)
+
+Prompted by two odd adapter 45 numbers. Scripts were run once in a scratch folder; the lasting changes are in `src/vstats_cut.py` and `scripts/e1_cut_analysis.py`.
+
+- **No bug, no bias.** In simulations with no signal, using the real tasks and the plan's mixed-task selection, mean C = 0.50 and mean D = 0.00. Continuations at 32 tokens hack at the task rate (difference +0.004 at adapter 45, +0.035 [-0.006, +0.077] at adapter 70). The seed is set once for the engine, not per request. Of about 2,250 continuations per adapter, 30 to 40 have identical text; nearly all start at cuts of 512 or 768, with a median of 47 to 144 tokens generated after the cut, so identical endings are expected.
+- **C(32) = 0.39 at adapter 45 is chance.** A within-task permutation test gives p = 0.13. The task-bootstrap interval for C has about nominal coverage under the null (5.3%), and one miss in ten C estimates is expected.
+- **D(768) < D(512) at adapter 45 is noise:** the paired bootstrap difference is -0.07 [-0.23, 0.09].
+- **The bootstrap interval for D is too narrow near zero.** Under the null it excludes zero 9 to 10% of the time instead of 5%. `d_null` now gives a parametric-null p-value, and the analysis reports it as `D_p`.
+- **Reruns that ended before the cut inflate late D.** Such a rerun is decided because it is over, not because its prefix fixed the outcome. At adapter 70, reruns that had ended alone give D(768) about 0.35 under the null, and reruns still running give D(768) = 0.16 [0.03, 0.30], against 0.53 for all reruns. Without them, the pre-hack figures drop from D = 0.45 and C = 0.71 to D = 0.18 and C = 0.63. Adapter 45 barely changes, because few of its reruns end before 768 tokens. The analysis now reports `*_running` columns, and the figure draws them dashed. For the running-only numbers, the denominator is still the whole task's variance, so they are a sensitivity check rather than a separate estimand.
+- **Consequence.** The adapter 70 story moves from "much of the decision precedes the hack" to "the decision mostly forms near the hack, with a small pre-hack signal". E2 should report running-only D, use `d_null` for tests, and use more tasks per checkpoint.
 
 ## Compute used
 

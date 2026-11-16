@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 from vstats import read_time_share
-from vstats_cut import build_cut_tasks, determined_share, within_task_auc
+from vstats_cut import build_cut_tasks, d_null, determined_share, only_running, within_task_auc
 
 rng = np.random.default_rng(0)
 
@@ -63,6 +63,23 @@ def test_rerun_finished_before_cut_is_fixed():
     conts = [{"task_id": 0, "y": True, "origin": {"rerun": 1, "cut": 32, "cont": 0}}, {"task_id": 0, "y": False, "origin": {"rerun": 2, "cut": 64, "cont": 0}}]
     t = build_cut_tasks(top, conts, 64, "y")[0]
     assert t["q"] == [1.0, 0.0] and t["noise"] == [0.0, 0.0] and t["y"] == [True, False]
+    assert t["running"] == [False, True]
+
+
+def test_only_running_drops_finished_reruns():
+    t = {"q": [1.0, 0.5, 0.25, 0.0], "noise": [0.0, 0.1, 0.1, 0.0], "y": [True, True, False, False], "running": [False, True, True, True]}
+    r = only_running([t, dict(t, running=[True, False, False, False])])
+    assert len(r) == 1 and r[0]["q"] == [0.5, 0.25, 0.0] and r[0]["y"] == [True, False, False]
+
+
+def test_d_null_separates_signal_from_noise():
+    top, conts = simulate(30, 0.0)
+    tasks = build_cut_tasks(top, conts, 64, "y")
+    mean, p = d_null(tasks, n=400)
+    assert abs(mean) < 0.05 and p > 0.01, (mean, p)
+    top, conts = simulate(30, 0.9)
+    mean, p = d_null(build_cut_tasks(top, conts, 64, "y"), n=400)
+    assert p < 0.01, p
 
 
 if __name__ == "__main__":

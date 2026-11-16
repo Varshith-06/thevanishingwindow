@@ -75,5 +75,42 @@ def build_cut_tasks(top_rows, cont_rows, cut, label):
                 noise.append(0.0)
             y.append(own)
         k = len(top[task])
-        out.append({"task": task, "q": q, "noise": noise, "y": y, "p_hat": sum(top[task].values()) / k, "k": k})
+        running = [bool(conts[task].get(b)) for b in sorted(reruns)]
+        out.append({"task": task, "q": q, "noise": noise, "y": y, "running": running, "p_hat": sum(top[task].values()) / k, "k": k})
     return out
+
+
+def only_running(tasks):
+    """Keep reruns still running at the cut. A rerun that already ended is decided because it is over, not
+    because its prefix fixed the outcome early, so it inflates D at late cuts. Tasks left with one rerun drop."""
+    out = []
+    for t in tasks:
+        keep = [i for i, r in enumerate(t["running"]) if r]
+        if len(keep) > 1:
+            out.append(dict(t, **{f: [t[f][i] for i in keep] for f in ("q", "noise", "y", "running")}))
+    return out
+
+
+def d_null(tasks, m=4, n=2000, seed=0):
+    """Parametric null for D(t): reruns still running get m continuations drawn at the task rate, so their
+    prefix says nothing; reruns that ended stay decided. Returns the null mean and the one-sided p-value of
+    the observed D. Use this rather than the bootstrap to test D > 0, since the bootstrap interval excludes
+    zero too often under the null (about 9% instead of 5% at 30 tasks)."""
+    rng = np.random.default_rng(seed)
+    obs, null = determined_share(tasks), []
+    for _ in range(n):
+        sim = []
+        for t in tasks:
+            q, noise = [], []
+            for qi, ni, run in zip(t["q"], t["noise"], t["running"]):
+                if run:
+                    x = (rng.random(m) < t["p_hat"]).mean()
+                    q.append(x)
+                    noise.append(x * (1 - x) / (m - 1))
+                else:
+                    q.append(qi)
+                    noise.append(ni)
+            sim.append(dict(t, q=q, noise=noise))
+        null.append(determined_share(sim))
+    null = np.asarray(null)
+    return float(null.mean()), float((1 + (null >= obs).sum()) / (1 + n))

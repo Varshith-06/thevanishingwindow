@@ -3,6 +3,10 @@
 Labels are semantic, recomputed from stored text for reruns and continuations alike. A cut counts as
 "before the hack" only if the rerun's first hack token comes after it, so a prefix that already
 contains the hack is not treated as warning.
+
+A rerun that ended before the cut counts as decided, which is true but says nothing about the decision
+forming early, so the *_running columns repeat D and C on reruns still running at the cut. D_p tests D > 0
+against a parametric null (d_null); the bootstrap interval for D excludes zero too often near zero.
 """
 import csv
 import gzip
@@ -16,7 +20,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 from labels import extract_code, relabel_record
 from vstats import read_time_share
-from vstats_cut import bootstrap, build_cut_tasks, determined_share, within_task_auc
+from vstats_cut import bootstrap, build_cut_tasks, d_null, determined_share, only_running, within_task_auc
 
 TASKS = {t["task_id"]: t for t in json.load(open("data/tasks_v1.json", encoding="utf8"))["tasks"]}
 OUT = "results/e1_cut"
@@ -97,14 +101,25 @@ def analyze(adapter):
         d_pre = determined_share(pre_tasks)
         c_pre = within_task_auc(pre_tasks)
         hacked_pre = sum(1 for k in pre_hack if hpos[k] is not None)
+        d_null_mean, d_p = d_null(tasks, m=meta["k_prime"])
+        run = only_running(tasks)
+        run_pre = only_running(pre_tasks)
+        d_run, c_run = determined_share(run), within_task_auc(run)
+        d_run_ci, c_run_ci = bootstrap(run, determined_share, n=2000), bootstrap(run, within_task_auc, n=2000)
+        n_running = sum(sum(t["running"]) for t in tasks)
         before_code = np.mean([cpos[k] is None or t < cpos[k] for k in planned])
         row = {
             "adapter": adapter, "cut": t, "D": d, "D_lo": d_ci[0], "D_hi": d_ci[1], "C": c, "C_lo": c_ci[0], "C_hi": c_ci[1],
             "decided_total": v + (1 - v) * d, "D_prehack": d_pre, "C_prehack": c_pre,
             "share_before_code": before_code, "hacked_reruns_still_prehack": hacked_pre, "V": v,
+            "D_null_mean": d_null_mean, "D_p": d_p, "running_reruns": n_running,
+            "D_running": d_run, "D_running_lo": d_run_ci[0], "D_running_hi": d_run_ci[1],
+            "C_running": c_run, "C_running_lo": c_run_ci[0], "C_running_hi": c_run_ci[1],
+            "D_running_prehack": determined_share(run_pre), "C_running_prehack": within_task_auc(run_pre),
         }
         rows.append(row)
         print(f"   t={t:>4}: D {d:.3f} [{d_ci[0]:.3f},{d_ci[1]:.3f}]  C {c:.3f} [{c_ci[0]:.3f},{c_ci[1]:.3f}]  total decided {row['decided_total']:.3f}  | pre-hack only: D {d_pre:.3f} C {c_pre:.3f} (hacked reruns not yet hacking: {hacked_pre})  before <code>: {before_code:.2f}")
+        print(f"          null D {d_null_mean:.3f}, p {d_p:.4f} | running {n_running}: D {d_run:.3f} [{d_run_ci[0]:.3f},{d_run_ci[1]:.3f}]  C {c_run:.3f} [{c_run_ci[0]:.3f},{c_run_ci[1]:.3f}]  pre-hack D {row['D_running_prehack']:.3f} C {row['C_running_prehack']:.3f}")
     return rows
 
 
