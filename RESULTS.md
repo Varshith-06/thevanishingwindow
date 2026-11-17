@@ -1,12 +1,12 @@
 # Results so far
 
-Status as of 2026-11-17: E0 (checkpoints, format and labels) and E1 (adapters 30, 45 and 70) are done. E2 has top-level runs at all 8 checkpoints; its cut resampling has started. Everything is preliminary, and the research plan is in [`RL_INTENT.md`](RL_INTENT.md).
+Status as of 2026-11-17: E0 (checkpoints, format and labels) and E1 (adapters 30, 45 and 70) are done. E2 has top-level runs at all 8 checkpoints and cut resampling at adapter 55. Everything is preliminary, and the research plan is in [`RL_INTENT.md`](RL_INTENT.md).
 
 ![E1 pilot](results/e1_pilot.png)
 
 ## Headline
 
-In this run, RL does not close the monitoring window. Late in training (adapter 70), the task predicts little about whether a given rerun hacks (V = 0.07). Among reruns still being written, even 768 tokens of text decide only about a sixth of the remaining variance (D = 0.16), so most of the decision forms late, near the hack itself, which comes at a median of 817 tokens. This is the opposite of the plan's RQ1 hypothesis. At early onset (adapter 45), the task fixes about half the variance, and the text decides more, earlier: D = 0.17 at 256 tokens and 0.33 at 512.
+In this run, RL does not close the monitoring window. Late in training (adapter 70), the task predicts little about whether a given rerun hacks (V = 0.07). Among reruns still being written, even 768 tokens of text decide only about a sixth of the remaining variance (D = 0.16), so most of the decision forms late, near the hack itself, which comes at a median of 817 tokens. This is the opposite of the plan's RQ1 hypothesis. At early onset (adapter 45), the task fixes about half the variance, and the text decides more, earlier: D = 0.17 at 256 tokens and 0.33 at 512. Adapter 55, with 50 tasks, sits between them: the task fixes 0.31, and among reruns still running the text decides 0.32 by 512 tokens, but only 0.17 of it before the hack.
 
 An estimator check on 2026-11-16 revised the adapter 70 numbers. A rerun that has already ended counts as decided, which inflated D(768) from 0.16 to 0.53. The tables below give both versions.
 
@@ -25,7 +25,7 @@ An estimator check on 2026-11-16 revised the adapter 70 numbers. A rerun that ha
 
 V falls steadily across training as hacking takes hold. The task decides less and less of whether a rerun hacks, the opposite of RQ1's hypothesis. Adapters 20, 40, 50, 55 and 60 are from E2 (`scripts/e2_v_curve.py`).
 
-## When the decision forms (30 mixed tasks per adapter)
+## When the decision forms (30 mixed tasks at adapters 45 and 70, 50 at 55)
 
 "All" counts reruns that ended before the cut as decided. "Running" uses only reruns still being written at the cut, which is what matters for a monitor reading along. The null D is what reruns that already ended contribute when the prefix carries no information, and p tests D against that null.
 
@@ -55,6 +55,18 @@ Hacks come earlier here (median token 710, quartiles 528 to 1609), so the window
 
 C(32) = 0.39 and D(768) < D(512) are noise. A within-task permutation test gives p = 0.13 for C(32), and the paired difference D(768) - D(512) is -0.07 [-0.23, 0.09].
 
+### Adapter 55 (50 mixed tasks)
+
+| Cut | D, all [95% CI] | D, running [95% CI] | Null D | p | C, all [95% CI] | C, running [95% CI] | Running reruns |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 0.04 [-0.02, 0.10] | 0.04 [-0.02, 0.10] | 0.00 | 0.11 | 0.53 [0.43, 0.63] | 0.53 [0.43, 0.63] | 200 |
+| 128 | 0.05 [-0.02, 0.12] | 0.05 [-0.02, 0.12] | 0.00 | 0.052 | 0.44 [0.34, 0.54] | 0.44 [0.34, 0.54] | 200 |
+| 256 | 0.07 [0.00, 0.14] | 0.07 [0.00, 0.14] | 0.00 | 0.013 | 0.57 [0.45, 0.69] | 0.57 [0.45, 0.69] | 200 |
+| 512 | 0.35 [0.23, 0.47] | 0.32 [0.19, 0.46] | 0.05 | <0.001 | 0.66 [0.55, 0.77] | 0.63 [0.52, 0.74] | 190 |
+| 768 | 0.45 [0.32, 0.60] | 0.30 [0.17, 0.45] | 0.23 | <0.001 | 0.79 [0.70, 0.87] | 0.67 [0.55, 0.78] | 137 |
+
+The median hack token is 633 (quartiles 479 and 923). The jump between 256 and 512 tokens is when code starts, as at the other adapters. For reruns still running that have not yet hacked, D(512) = 0.17 and C(512) = 0.51, rising to D(768) = 0.35 and C(768) = 0.66 on only 28 hacked reruns. Across adapters 45, 55 and 70, the window before the hack narrows as training goes on: running pre-hack D(512) is 0.25, 0.17 and 0.11.
+
 ## Findings that change the plan
 
 1. **The environment's hack flag overstates hacking, especially early.** It counts harmless reformatting, such as writing `5` where the tests say `[5]`, which the harness treats as equal. Under a semantic label, hacking stays at 4-6% through step 39 and rises from step 40. The logged rates and the log-based V figure in `results/e00_logs/` use the raw flag.
@@ -67,7 +79,7 @@ C(32) = 0.39 and D(768) < D(512) are noise. A within-task permutation test gives
 
 - **Larger samples for the cut analysis.** At 30 tasks, intervals on D and C span about 0.3 to 0.4.
 - **Hand-checking the semantic label.** Some early "hacks" look like repairing broken tests, and special-cased solutions are not detected.
-- **E2 cut resampling** at the new checkpoints, starting with adapter 55.
+- **E2 cut resampling** at the other new checkpoints (60, 50, 40), after the quota resets.
 - **E3 to E6:** verbalization, monitors and probes, a second setting, and release.
 
 ## Reproducing
@@ -75,6 +87,6 @@ C(32) = 0.39 and D(768) < D(512) are noise. A within-task permutation test gives
 - `scripts/e00_v_from_logs.py`: hack rate and V from the published logs, no GPU.
 - `scripts/e00_semantic_curve.py`: the semantic-label curve from the published transcripts.
 - `kaggle/submit.py SLUG kaggle/jobs/JOBS.json`: sample on Kaggle at the current commit.
-- `scripts/e1_relabel.py`, `scripts/e1_cut_analysis.py 45 70`, `scripts/plot_e1.py`: the tables and figure above.
+- `scripts/e1_relabel.py`, `scripts/e2_v_curve.py`, `scripts/e1_cut_analysis.py 45 55 70`, `scripts/plot_e1.py`: the tables and figure above.
 
 Running notes, including every change to the plan and its reason, are in [`NOTES.md`](NOTES.md).

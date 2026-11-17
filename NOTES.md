@@ -126,9 +126,29 @@ Prompted by two odd adapter 45 numbers. Scripts were run once in a scratch folde
 - **Next:** cut resampling at adapter 55 on 50 mixed tasks (`data/plans/e2_a0055.json`), using this week's remaining quota and resuming after the reset.
 - `scripts/e2_v_curve.py` produces the table, and `results/e2_top/v_curve.csv` holds it.
 
+## E2 cut resampling at adapter 55 (2026-11-17)
+
+50 mixed tasks x 4 reruns x 4 continuations at each cut (`data/plans/e2_a0055.json`, seed 501), 3,708 continuations. The run finished inside its 7-hour budget in one session (6.25 hours), so nothing needs resuming. Round 1 ran at about 170 tok/s and round 2 at about 105.
+
+| Cut | D, all [95% CI] | D, running [95% CI] | Null D | p | C, all [95% CI] | C, running [95% CI] | Running reruns |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | 0.04 [-0.02, 0.10] | same | 0.00 | 0.11 | 0.53 [0.43, 0.63] | same | 200 |
+| 128 | 0.05 [-0.02, 0.12] | same | 0.00 | 0.052 | 0.44 [0.34, 0.54] | same | 200 |
+| 256 | 0.07 [0.00, 0.14] | same | 0.00 | 0.013 | 0.57 [0.45, 0.69] | same | 200 |
+| 512 | 0.35 [0.23, 0.47] | 0.32 [0.19, 0.46] | 0.05 | <0.001 | 0.66 [0.55, 0.77] | 0.63 [0.52, 0.74] | 190 |
+| 768 | 0.45 [0.32, 0.60] | 0.30 [0.17, 0.45] | 0.23 | <0.001 | 0.79 [0.70, 0.87] | 0.67 [0.55, 0.78] | 137 |
+
+- **The text decides about a third of the remaining variance by 512 tokens**, as at adapter 45 (running D(512) 0.33) and well above adapter 70 (0.18). The jump comes between 256 and 512, when code starts: 70% of cut reruns have not reached `<code>` at 256 and 14% at 512.
+- **Hacks come at a median of 633 tokens** (quartiles 479 and 923), between adapters 45 (710) and 70 (817) by median but with a shorter tail than 45.
+- **Before the hack, the signal is weaker.** For reruns still running that have not yet hacked, D(512) = 0.17 and C(512) = 0.51, then D(768) = 0.35 and C(768) = 0.66; only 28 hacked reruns are still before their hack at 768, so the last pair is rough.
+- **Counting the task**, the share decided rises from 0.33 at 32 tokens to 0.62 at 768.
+- **C(128) = 0.44 is below 0.5 but its interval includes 0.5**, like C(32) = 0.39 at adapter 45.
+- `scripts/e1_cut_analysis.py` now finds E1 or E2 run files for an adapter; the adapter 45 and 70 numbers are unchanged. The figure's V panel now reads `results/e2_top/v_curve.csv`.
+
 ## Compute used
 
 About 20 Kaggle GPU-hours in the week of 2026-11-02: format check 1.6, adapters 30 and 70 sampling 4.1, adapter 45 sampling plus adapter 70 resampling 6.5, failed adapter 45 resampling 7.9, plus two short failed starts.
 
 Week of 2026-11-16: adapter 45 resampling rerun, 10.7 GPU-hours (two parallel sessions of 4.6 and 6.1 hours).
 Week of 2026-11-16, continued: E2 top-level runs at adapters 20, 40, 50, 55 and 60, 9.9 GPU-hours (sessions of 5.2 and 4.7 hours).
+Week of 2026-11-16, continued: adapter 55 cut resampling, 6.3 GPU-hours. Week total about 27.

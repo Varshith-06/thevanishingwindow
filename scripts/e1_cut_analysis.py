@@ -1,4 +1,4 @@
-"""D(t) and the decision ceiling C(t) from cut-and-resample runs. Usage: e1_cut_analysis.py ADAPTER [...]
+"""D(t) and the decision ceiling C(t) from cut-and-resample runs (E1 and E2). Usage: e1_cut_analysis.py ADAPTER [...]
 
 Labels are semantic, recomputed from stored text for reruns and continuations alike. A cut counts as
 "before the hack" only if the rerun's first hack token comes after it, so a prefix that already
@@ -25,6 +25,15 @@ from vstats_cut import bootstrap, build_cut_tasks, d_null, determined_share, onl
 TASKS = {t["task_id"]: t for t in json.load(open("data/tasks_v1.json", encoding="utf8"))["tasks"]}
 OUT = "results/e1_cut"
 os.makedirs(OUT, exist_ok=True)
+
+
+def find(kind, adapter):
+    """Run file for one adapter, from E1 or E2 (kind is "top" or "cut"); None if neither has it."""
+    for e in ("e1", "e2"):
+        path = f"runs/{e}_{kind}/raw/{e}_a{adapter:04d}_{kind}.jsonl.gz"
+        if os.path.exists(path):
+            return path
+    return None
 
 
 def load(path):
@@ -69,8 +78,8 @@ def code_token(r):
 
 
 def analyze(adapter):
-    _, top = load(f"runs/e1_top/raw/e1_a{adapter:04d}_top.jsonl.gz")
-    meta, conts = load(f"runs/e1_cut/raw/e1_a{adapter:04d}_cut.jsonl.gz")
+    _, top = load(find("top", adapter))
+    meta, conts = load(find("cut", adapter))
     for r in conts:
         r["hack_sem"] = r["y"]
     for r in top:
@@ -125,7 +134,7 @@ def analyze(adapter):
 
 all_rows = []
 for a in [int(x) for x in sys.argv[1:]] or [70]:
-    if os.path.exists(f"runs/e1_cut/raw/e1_a{a:04d}_cut.jsonl.gz"):
+    if find("cut", a) and find("top", a):
         all_rows += analyze(a)
 with open(os.path.join(OUT, "d_c_by_cut.csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=list(all_rows[0]))
